@@ -22,6 +22,11 @@ jobs:
       - name: Depoyu Klonla
         uses: actions/checkout@v4
 
+      - name: Python 3.10 Kur (Android Araç Uyumluluğu)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Runner Disk Alanını Genişlet
         run: |
           echo "Gereksiz runner paketleri temizleniyor..."
@@ -31,8 +36,8 @@ jobs:
       - name: Gerekli Linux Paketlerini Kur
         run: |
           sudo apt update
-          sudo apt install -y brotli lz4 zip unzip wget curl file python3 python3-pip openjdk-11-jdk jq git
-          pip3 install --upgrade pip requests
+          sudo apt install -y brotli lz4 zip unzip wget curl file openjdk-11-jdk jq git
+          pip install --upgrade pip requests
 
       - name: Taban ROM'u İndir ve Doğrula
         run: |
@@ -66,7 +71,7 @@ jobs:
           
           if [ -f "system.transfer.list" ] && [ -f "system.new.dat" ]; then
             echo "[*] system.new.dat -> system.img dönüştürülüyor..."
-            python3 sdat2img.py system.transfer.list system.new.dat system.img
+            python sdat2img.py system.transfer.list system.new.dat system.img
             mkdir -p system_mnt
             sudo mount -o loop,rw system.img system_mnt || true
           fi
@@ -144,7 +149,7 @@ jobs:
             git clone https://github.com/xpirt/img2sdat.git /tmp/img2sdat
             
             echo "[*] system.img -> system.new.dat dönüştürülüyor..."
-            python3 /tmp/img2sdat/img2sdat.py system.img -v 4 -o ./
+            python /tmp/img2sdat/img2sdat.py system.img -v 4 -o ./
             
             echo "[*] brotli ile sıkıştırılıyor..."
             brotli -q 6 system.new.dat -o system.new.dat.br
