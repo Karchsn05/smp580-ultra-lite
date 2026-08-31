@@ -2,7 +2,7 @@
 set -e
 
 # ==============================================================================
-# SM-P580 (gtanotexlwifi / Exynos 7870) Ultra-Lite & Smooth Optimization Script
+# SM-P580 (gtanotexlwifi / Exynos 7870) Ultra-Lite & iOS-Tuned Optimization Core
 # ==============================================================================
 
 TARGET_DIR="$1"
@@ -33,6 +33,8 @@ DEBLOAT_LIST=(
     "app/GalaxyPencil"
     "app/BasicDreams"
     "app/LiveWallpapersPicker"
+    "app/Trebuchet"
+    "priv-app/TrebuchetQuickStep"
     "priv-app/Velvet"
     "priv-app/GooglePartnerSetup"
     "priv-app/SetupWizard"
@@ -42,7 +44,7 @@ DEBLOAT_LIST=(
     "priv-app/BackupRestoreConfirmation"
 )
 
-echo "[*] [1/5] Debloat yapiliyor: RAM tuketen uygulamalar kaldiriliyor..."
+echo "[*] [1/6] Debloat yapiliyor: RAM tuketen uygulamalar kaldiriliyor..."
 for item in "${DEBLOAT_LIST[@]}"; do
     if [ -d "$TARGET_DIR/$item" ]; then
         echo "  - Silindi: $item"
@@ -54,8 +56,45 @@ for item in "${DEBLOAT_LIST[@]}"; do
     fi
 done
 
-# 2. SYSTEM-LEVEL ADBLOCK (Reklam ve Takipci Engelleme)
-echo "[*] [2/5] Web sitelerini 2 kat hizlandiracak sistem hosts dosyasi ekleniyor..."
+# 2. MICROG PRIVAPP PERMISSIONS (Imza Sahteleme & Tam Yetkilendirme)
+echo "[*] [2/6] microG privapp-permissions XML dosyalari olusturuluyor..."
+PERM_DIR="$TARGET_DIR/etc/permissions"
+if [ ! -d "$PERM_DIR" ]; then
+    PERM_DIR="$TARGET_DIR/system/etc/permissions"
+fi
+mkdir -p "$PERM_DIR" 2>/dev/null || true
+
+cat << 'EOF' > "$PERM_DIR/privapp-permissions-com.google.android.gms.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="com.google.android.gms">
+        <permission name="android.permission.FAKE_PACKAGE_SIGNATURE"/>
+        <permission name="android.permission.WRITE_SECURE_SETTINGS"/>
+        <permission name="android.permission.INSTALL_LOCATION_PROVIDER"/>
+        <permission name="android.permission.UPDATE_APP_OPS_STATS"/>
+        <permission name="android.permission.UPDATE_DEVICE_STATS"/>
+        <permission name="android.permission.PACKAGE_USAGE_STATS"/>
+        <permission name="android.permission.ACCESS_COARSE_LOCATION"/>
+        <permission name="android.permission.ACCESS_FINE_LOCATION"/>
+        <permission name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+        <permission name="android.permission.CHANGE_DEVICE_IDLE_TEMP_WHITELIST"/>
+    </privapp-permissions>
+</permissions>
+EOF
+
+cat << 'EOF' > "$PERM_DIR/privapp-permissions-com.android.vending.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="com.android.vending">
+        <permission name="android.permission.FAKE_PACKAGE_SIGNATURE"/>
+        <permission name="android.permission.INSTALL_PACKAGES"/>
+        <permission name="android.permission.DELETE_PACKAGES"/>
+    </privapp-permissions>
+</permissions>
+EOF
+
+# 3. SYSTEM-LEVEL ADBLOCK (Reklam ve Takipci Engelleme)
+echo "[*] [3/6] Web sitelerini 2 kat hizlandiracak sistem hosts dosyasi ekleniyor..."
 HOSTS_PATH="$TARGET_DIR/etc/hosts"
 if [ ! -f "$HOSTS_PATH" ]; then
     HOSTS_PATH="$TARGET_DIR/system/etc/hosts"
@@ -77,8 +116,8 @@ EOF
     echo "  + hosts dosyasina hafif reklam engelleyici eklendi."
 fi
 
-# 3. BUILD.PROP TUNING (iOS Tarzi Dokunma Onceligi + RAM & GPU Hizlandirma)
-echo "[*] [3/5] build.prop ayarlari yapilandiriliyor..."
+# 4. BUILD.PROP TUNING (SkiaGL GPU + iOS Dokunma Onceligi + LMKD + Masaustu Modu)
+echo "[*] [4/6] build.prop ayarlari yapilandiriliyor..."
 
 BUILD_PROP="$TARGET_DIR/build.prop"
 if [ ! -f "$BUILD_PROP" ]; then
@@ -89,10 +128,11 @@ if [ -f "$BUILD_PROP" ]; then
     cat << 'EOF' >> "$BUILD_PROP"
 
 # ==============================================================================
-# SM-P580 ULTRA-LITE & IOS-STYLE TOUCH / PERFORMANCE TWEAKS
+# SM-P580 (Exynos 7870 / Mali-T830) ULTRA-LITE & IOS-TUNED TWEAKS
 # ==============================================================================
 
-# --- [1] GPU & SurfaceFlinger Donanim Hizlandirma (Mali-T830) ---
+# --- [1] Mali-T830 SkiaGL & SurfaceFlinger Donanim Hizlandirma ---
+debug.hwui.renderer=skiagl
 debug.sf.hw=1
 debug.egl.hw=1
 debug.egl.profiler=0
@@ -109,19 +149,24 @@ view.scroll_friction=0.004
 persist.sys.scrollingcache=3
 touch.pressure.scale=0.001
 
-# --- [3] Düşük RAM & Arka Plan Yonetimi (2GB/3GB Optimize) ---
+# --- [3] Düşük RAM, LMKD & Arka Plan Yonetimi (2GB/3GB Optimize) ---
 ro.config.low_ram=false
-ro.config.fha_enable=true
-ro.sys.fw.bg_apps_limit=14
+ro.sys.fw.bg_apps_limit=16
 persist.sys.purgeable_assets=1
 ro.HOME_APP_ADJ=1
 
-# --- [4] Masaustu Pencereli Mod (Freeform Windows Support) ---
+# LMKD Klasik Minfree Seviyeleri
+ro.lmk.use_minfree_levels=true
+ro.lmk.swap_free_low_percentage=10
+ro.lmk.thrashing_limit=30
+ro.lmk.thrashing_limit_decay=50
+
+# --- [4] Masaustu Pencereli Mod (AOSP Freeform Windows) ---
 enable_freeform_support=1
 force_resizable_activities=1
 persist.sys.freeform_window=1
 
-# --- [5] CPU Tasarrufu & Loglama Yükünü Sıfırlama ---
+# --- [5] Animasyon Hızlandırma & CPU Tasarrufu ---
 logcat.live=disable
 profiler.force_disable_ulog=1
 profiler.force_disable_err_rpt=1
@@ -129,8 +174,8 @@ EOF
     echo "  + build.prop basariyla guncellendi."
 fi
 
-# 4. ZRAM VE SWAP OPTIMIZASYONU
-echo "[*] [4/5] ZRAM sanal bellek init yapilandirmasi hazirlaniyor..."
+# 5. A2 V30 MICROSD + ZRAM ONCELIKLI CIFT KATMANLI SWAP MIMARISI
+echo "[*] [5/6] A2 V30 MicroSD + ZRAM dual-swap init yapilandirmasi hazirlaniyor..."
 INIT_D_DIR="$TARGET_DIR/etc/init.d"
 if [ ! -d "$INIT_D_DIR" ]; then
     INIT_D_DIR="$TARGET_DIR/system/etc/init.d"
@@ -138,21 +183,43 @@ fi
 
 mkdir -p "$INIT_D_DIR" 2>/dev/null || true
 if [ -d "$INIT_D_DIR" ]; then
-    cat << 'EOF' > "$INIT_D_DIR/99zram_tweak"
+    cat << 'EOF' > "$INIT_D_DIR/99dual_swap"
 #!/system/bin/sh
-# SM-P580 ZRAM Optimizer
+# SM-P580 Dual Layer Memory Architecture:
+# Katman 1: ZRAM (LZ4) - Oncelik: 32767 (Yuksek hiz, RAM ici)
+# Katman 2: A2 V30 MicroSD Swapfile - Oncelik: 10 (Sadece ZRAM dolunca devreye girer)
+
+# 1. ZRAM Yapilandirmasi
 if [ -e /sys/block/zram0/disksize ]; then
+    swapoff /dev/block/zram0 2>/dev/null || true
     echo 1536M > /sys/block/zram0/disksize
     mkswap /dev/block/zram0 2>/dev/null
-    swapon /dev/block/zram0 2>/dev/null
-    echo 100 > /proc/sys/vm/swappiness
-    echo 0 > /proc/sys/vm/page-cluster
+    swapon /dev/block/zram0 -p 32767 2>/dev/null
+fi
+
+# 2. A2 MicroSD Kart Swapfile Yapilandirmasi (Varsa)
+SD_SWAP="/storage/sdcard1/.swap/swapfile"
+if [ -f "$SD_SWAP" ]; then
+    chmod 600 "$SD_SWAP"
+    swapon "$SD_SWAP" -p 10 2>/dev/null
+fi
+
+# 3. Kernel Sysctl Parametreleri (TBW Koruma & Sifir Takilma)
+echo 90 > /proc/sys/vm/swappiness
+echo 100 > /proc/sys/vm/vfs_cache_pressure
+echo 10 > /proc/sys/vm/dirty_ratio
+echo 5 > /proc/sys/vm/dirty_background_ratio
+echo 0 > /proc/sys/vm/page-cluster
+
+# 4. In-Kernel Minfree Parametreleri (~400MB Bosta RAM Hedefi)
+if [ -e /sys/module/lowmemorykiller/parameters/minfree ]; then
+    echo "18432,23040,27648,32256,73728,102400" > /sys/module/lowmemorykiller/parameters/minfree
 fi
 EOF
-    chmod 755 "$INIT_D_DIR/99zram_tweak" 2>/dev/null || true
-    echo "  + ZRAM 1.5GB sanal bellek scripti eklendi."
+    chmod 755 "$INIT_D_DIR/99dual_swap" 2>/dev/null || true
+    echo "  + ZRAM (prio 32767) ve SD Swap (prio 10) scripti eklendi."
 fi
 
 echo "=================================================================="
-echo ">> [5/5] Tum optimizasyonlar basariyla tamamlandi!"
+echo ">> [6/6] Tum optimizasyonlar basariyla tamamlandi!"
 echo "=================================================================="

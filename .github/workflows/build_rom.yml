@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       rom_url:
-        description: 'LineageOS / Custom ROM Doğrudan İndirme Linki (Direct Zip URL)'
+        description: 'LineageOS Taban ROM Zip Linki'
         required: true
         default: 'https://master.dl.sourceforge.net/project/lineageos-17-for-gtaxlwifi/LineageOS-17.1/lineage-17.1-20210214-UNOFFICIAL-gtanotexlwifi.zip?viasf=1'
       release_tag:
         description: 'Sürüm Etiketi (Release Tag)'
         required: true
-        default: 'v1.0-ultra-lite'
+        default: 'v1.0-ultra-lite-ios'
 
 jobs:
   build:
@@ -22,40 +22,38 @@ jobs:
       - name: Depoyu Klonla
         uses: actions/checkout@v4
 
-      - name: Disk Alanını Genişlet (Runner Clean Up)
+      - name: Runner Disk Alanını Genişlet
         run: |
-          echo "Disk alanı temizleniyor..."
+          echo "Gereksiz runner paketleri temizleniyor..."
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/share/swift /opt/hostedtoolcache
           df -h
 
       - name: Gerekli Linux Paketlerini Kur
         run: |
           sudo apt update
-          sudo apt install -y brotli lz4 zip unzip wget curl file python3 python3-pip openjdk-11-jdk
+          sudo apt install -y brotli lz4 zip unzip wget curl file python3 python3-pip openjdk-11-jdk jq
           pip3 install --upgrade pip
 
-      - name: ROM İndirme ve Açma
+      - name: Taban ROM'u İndir ve Aç
         run: |
           mkdir -p workspace/unpacked
           cd workspace
-          echo "ROM indiriliyor: ${{ github.event.inputs.rom_url }}"
+          echo "Taban ROM indiriliyor: ${{ github.event.inputs.rom_url }}"
           wget --no-check-certificate -q --show-progress -O rom.zip "${{ github.event.inputs.rom_url }}"
           
           echo "ROM zip paketi açılıyor..."
           unzip -q rom.zip -d unpacked/
           ls -la unpacked/
 
-      - name: Sistem Dosyalarını Çıkar (sdat2img / brotli / raw img)
+      - name: Sistem Dosyalarını Çıkar (sdat2img / Mount)
         run: |
           cd workspace/unpacked
           
-          # Eğer system.new.dat.br varsa brotli ile aç
           if [ -f "system.new.dat.br" ]; then
             echo "[*] system.new.dat.br decompress ediliyor..."
             brotli -d system.new.dat.br
           fi
 
-          # sdat2img aracını indir
           wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py -O sdat2img.py
           
           if [ -f "system.transfer.list" ] && [ -f "system.new.dat" ]; then
@@ -65,7 +63,53 @@ jobs:
             sudo mount -o loop,rw system.img system_mnt || true
           fi
 
-      - name: Optimizasyon Scriptini Uygula
+      - name: Gömülü Açık Kaynak Paketleri İndir (Cromite, microG, K-9 Mail, Neo Launcher)
+        run: |
+          SYS_DIR="workspace/unpacked/system_mnt"
+          if [ -d "$SYS_DIR/system" ]; then
+            SYS_ROOT="$SYS_DIR/system"
+          elif [ -d "$SYS_DIR" ]; then
+            SYS_ROOT="$SYS_DIR"
+          elif [ -d "workspace/unpacked/system" ]; then
+            SYS_ROOT="workspace/unpacked/system"
+          else
+            SYS_ROOT="workspace/unpacked"
+          fi
+
+          echo "Hedef Sistem Dizini: $SYS_ROOT"
+          sudo mkdir -p "$SYS_ROOT/app/Cromite"
+          sudo mkdir -p "$SYS_ROOT/app/K9Mail"
+          sudo mkdir -p "$SYS_ROOT/app/NeoLauncher"
+          sudo mkdir -p "$SYS_ROOT/priv-app/GmsCore"
+          sudo mkdir -p "$SYS_ROOT/priv-app/GsfProxy"
+          sudo mkdir -p "$SYS_ROOT/priv-app/FakeStore"
+
+          echo "[*] Cromite (arm64-v8a) indiriliyor..."
+          CROMITE_URL=$(curl -s https://api.github.com/repos/uazo/cromite/releases/latest | jq -r '.assets[] | select(.name | contains("arm64_ChromePublic.apk")) | .browser_download_url' | head -n 1)
+          if [ -n "$CROMITE_URL" ] && [ "$CROMITE_URL" != "null" ]; then
+            sudo wget -q --show-progress -O "$SYS_ROOT/app/Cromite/Cromite.apk" "$CROMITE_URL" || true
+          fi
+
+          echo "[*] K-9 Mail / Thunderbird indiriliyor..."
+          K9_URL=$(curl -s https://api.github.com/repos/thunderbird/thunderbird-android/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -n 1)
+          if [ -n "$K9_URL" ] && [ "$K9_URL" != "null" ]; then
+            sudo wget -q --show-progress -O "$SYS_ROOT/app/K9Mail/K9Mail.apk" "$K9_URL" || true
+          fi
+
+          echo "[*] Neo Launcher indiriliyor..."
+          NEO_URL=$(curl -s https://api.github.com/repos/NeoApplications/Neo-Launcher/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -n 1)
+          if [ -n "$NEO_URL" ] && [ "$NEO_URL" != "null" ]; then
+            sudo wget -q --show-progress -O "$SYS_ROOT/app/NeoLauncher/NeoLauncher.apk" "$NEO_URL" || true
+          fi
+
+          echo "[*] microG Paketi (GmsCore, GsfProxy, FakeStore) indiriliyor..."
+          sudo wget -q -O "$SYS_ROOT/priv-app/GmsCore/GmsCore.apk" "https://github.com/microg/GmsCore/releases/download/v0.3.4.240913/com.google.android.gms-240913008.apk" || true
+          sudo wget -q -O "$SYS_ROOT/priv-app/GsfProxy/GsfProxy.apk" "https://github.com/microg/GsfProxy/releases/download/v0.1.0/GsfProxy.apk" || true
+          sudo wget -q -O "$SYS_ROOT/priv-app/FakeStore/FakeStore.apk" "https://github.com/microg/FakeStore/releases/download/v0.1.0/FakeStore.apk" || true
+
+          sudo chmod -R 755 "$SYS_ROOT/app" "$SYS_ROOT/priv-app"
+
+      - name: Optimizasyon ve Mimari Scriptini Çalıştır
         run: |
           chmod +x ./scripts/optimize.sh
           
@@ -79,7 +123,7 @@ jobs:
             ./scripts/optimize.sh workspace/unpacked
           fi
 
-      - name: img2sdat ve Tekrar Paketleme
+      - name: img2sdat ve TWRP Flashable Zip Paketleme
         run: |
           cd workspace/unpacked
           
@@ -87,7 +131,6 @@ jobs:
             echo "[*] system_mnt unmount ediliyor..."
             sudo umount system_mnt
             
-            # img2sdat ile tekrar sparse dat yap
             wget -q https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py -O img2sdat.py
             echo "[*] system.img -> system.new.dat dönüştürülüyor..."
             python3 img2sdat.py system.img -v 4 -o ./
@@ -95,38 +138,39 @@ jobs:
             echo "[*] brotli ile sıkıştırılıyor..."
             brotli -q 6 system.new.dat -o system.new.dat.br
             
-            # Temizlik
             rm -f system.img system.new.dat sdat2img.py img2sdat.py
             sudo rm -rf system_mnt
           fi
           
           echo "[*] Yeni Flashable TWRP zip oluşturuluyor..."
-          zip -r -9 ../SM-P580_UltraLite_iOS_Tuned_${{ github.event.inputs.release_tag }}.zip ./*
+          ZIP_NAME="SM-P580_UltraLite_iOS_Tuned_${{ github.event.inputs.release_tag }}.zip"
+          zip -r -9 "../$ZIP_NAME" ./*
           cd ..
-          ls -lh SM-P580_UltraLite_iOS_Tuned_${{ github.event.inputs.release_tag }}.zip
-          sha256sum SM-P580_UltraLite_iOS_Tuned_${{ github.event.inputs.release_tag }}.zip > checksum.txt
+          ls -lh "$ZIP_NAME"
+          sha256sum "$ZIP_NAME" > checksum.txt
 
-      - name: GitHub Releases'a Yükle
+      - name: GitHub Releases Olarak Yayınla
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          name: "SM-P580 Ultra-Lite (iOS-Tuned) - ${{ github.event.inputs.release_tag }}"
+          name: "SM-P580 Ultra-Lite (iOS-Tuned Edition) - ${{ github.event.inputs.release_tag }}"
           body: |
-            ## 🚀 Samsung Galaxy Tab A 10.1 (SM-P580) - Ultra-Lite & Smooth Edition
+            ## 🚀 Samsung Galaxy Tab A 10.1 (SM-P580 / Exynos 7870) Ultra-Lite Edition
             
-            ### ✨ Uygulanan Mühendislik Optimizasyonları:
-            * ⚡ **iOS Tarzı Dokunma Önceliği:** `sys.use_fifo_ui=1` ve düşük gecikmeli UI render iş parçacığı.
-            * 🚀 **GPU Donanım Hızlandırma:** Mali-T830 SurfaceFlinger doğrudan render & 60 FPS pürüzsüz kaydırma.
-            * 🧹 **Derin Debloat:** RAM tüketen arka plan Google ve gereksiz telemetri servisleri tamamen temizlendi.
-            * 🛡️ **Sistem Düzeyinde Reklam Engelleme:** `/etc/hosts` seviyesinde reklam/izleyici filtreleme (Web sayfaları %50 daha hızlı yüklenir).
-            * 💾 **1.5 GB ZRAM (LZ4) Desteği:** Çoklu sekme açıldığında donma ve sayfa kapanmalarını önleyen bellek sıkıştırması.
-            * 🖥️ **Masaüstü Pencereli Mod (Freeform Windows):** Aktif pencereli kullanım desteği.
+            ### ✨ Öne Çıkan Mühendislik Özellikleri:
+            * 🍎 **iOS Dokunmatik Tepkiselliği:** `sys.use_fifo_ui=1`, SkiaGL GPU donanım hızlandırma ve 0.6x akıcı animasyonlar.
+            * 🛡️ **microG Entegrasyonu:** GmsCore, GsfProxy, FakeStore ve Signature Spoofing izinleri fabrika çıkışı aktif.
+            * 🌐 **Gömülü Cromite (arm64-v8a):** Dahili reklam engelleyicili, bellek sızıntısız ultra hızlı web deneyimi.
+            * ✉️ **Gömülü Thunderbird / K-9 Mail:** Bağımsız IMAP IDLE push bildirimli açık kaynaklı e-posta istemcisi.
+            * 🎨 **Neo / Posidon Launcher:** Google'sız, temiz dock ve grid düzenli hafif arayüz.
+            * 💾 **A2 V30 MicroSD + 1.5GB ZRAM Çift Katmanlı Bellek:** ZRAM (Öncelik 32767) + A2 SD Kart Swap (Öncelik 10) ile sıfır takılma.
+            * 🖥️ **Masaüstü Modu (Freeform Windows):** Yan yana boyutlandırılabilir çoklu pencereler.
             
-            ### 📲 Kurulum (TWRP Recovery):
+            ### 📲 Kurulum Adımları (TWRP):
             1. Tabletinizi **TWRP Recovery** modunda başlatın.
             2. `Wipe` -> `Advanced Wipe` -> `Dalvik/ART Cache`, `Cache`, `System`, `Data` alanlarını temizleyin.
-            3. İndirdiğiniz `.zip` dosyasını `Install` kısmından flashlayın.
-            4. `Reboot System` deyin ve keyfini çıkarın!
+            3. İndirdiğiniz `.zip` dosyasını `Install` menüsünden yükleyin.
+            4. Cihazınızı yeniden başlatın.
           files: |
             workspace/SM-P580_UltraLite_iOS_Tuned_${{ github.event.inputs.release_tag }}.zip
             workspace/checksum.txt
