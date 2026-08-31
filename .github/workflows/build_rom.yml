@@ -6,7 +6,7 @@ on:
       rom_url:
         description: 'LineageOS / eOS Taban ROM Zip Linki'
         required: true
-        default: 'https://downloads.sourceforge.net/project/eosbuildsronnz98/SamsungSmartphones/e-3.1.1-s-20250831-UNOFFICIAL-gtanotexlwifi.zip'
+        default: 'https://github.com/Karchsn05/smp580-ultra-lite/releases/download/base-rom/base_rom.zip'
       release_tag:
         description: 'Sürüm Etiketi (Release Tag)'
         required: true
@@ -34,20 +34,24 @@ jobs:
           sudo apt install -y brotli lz4 zip unzip wget curl file python3 python3-pip openjdk-11-jdk jq
           pip3 install --upgrade pip requests
 
-      - name: Taban ROM'u Akıllı Mirror İle İndir ve Doğrula
+      - name: Taban ROM'u İndir ve Doğrula
         run: |
-          chmod +x ./scripts/download_rom.py
-          python3 ./scripts/download_rom.py "${{ github.event.inputs.rom_url }}" workspace/rom.zip
+          mkdir -p workspace/unpacked
+          cd workspace
+          echo "ROM İndiriliyor: ${{ github.event.inputs.rom_url }}"
+          
+          # GitHub Releases'ten yüksek hızla indir
+          curl -L --retry 5 -A "Mozilla/5.0" "${{ github.event.inputs.rom_url }}" -o rom.zip
           
           echo "Dosya bütünlüğü kontrol ediliyor..."
-          file workspace/rom.zip
-          ls -lh workspace/rom.zip
+          file rom.zip
+          ls -lh rom.zip
           
-          unzip -tq workspace/rom.zip
+          unzip -tq rom.zip
           
           echo "ROM zip paketi açılıyor..."
-          unzip -q workspace/rom.zip -d workspace/unpacked/
-          ls -la workspace/unpacked/
+          unzip -q rom.zip -d unpacked/
+          ls -la unpacked/
 
       - name: Sistem Dosyalarını Çıkar (sdat2img / Mount)
         run: |
