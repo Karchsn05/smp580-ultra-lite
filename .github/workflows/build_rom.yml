@@ -36,7 +36,7 @@ jobs:
       - name: Gerekli Linux Paketlerini Kur
         run: |
           sudo apt update
-          sudo apt install -y brotli lz4 zip unzip wget curl file openjdk-11-jdk jq git
+          sudo apt install -y brotli lz4 zip unzip wget curl file openjdk-11-jdk jq git android-sdk-libsparse-utils
           pip install --upgrade pip requests
 
       - name: Taban ROM'u İndir ve Doğrula
@@ -144,20 +144,22 @@ jobs:
             echo "[*] system_mnt unmount ediliyor..."
             sudo umount system_mnt
             
+            echo "[*] system.img (Raw) -> system.sparse.img (Sparse) dönüştürülüyor..."
+            img2simg system.img system.sparse.img
+            
             echo "[*] img2sdat reposu klonlanıyor..."
             rm -rf /tmp/img2sdat
             git clone https://github.com/xpirt/img2sdat.git /tmp/img2sdat
             
-            # Python uyumluluğu için imp importunu güvenli hale getir
             sed -i "s/import imp/#import imp/g" /tmp/img2sdat/common.py 2>/dev/null || true
             
-            echo "[*] system.img -> system.new.dat dönüştürülüyor..."
-            python /tmp/img2sdat/img2sdat.py system.img -v 4 -o ./
+            echo "[*] system.sparse.img -> system.new.dat dönüştürülüyor..."
+            python /tmp/img2sdat/img2sdat.py system.sparse.img -v 4 -o ./
             
             echo "[*] brotli ile sıkıştırılıyor..."
             brotli -q 6 system.new.dat -o system.new.dat.br
             
-            rm -f system.img system.new.dat sdat2img.py
+            rm -f system.img system.sparse.img system.new.dat sdat2img.py
             sudo rm -rf system_mnt /tmp/img2sdat
           fi
           
