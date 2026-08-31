@@ -65,6 +65,7 @@ jobs:
           if [ -f "system.new.dat.br" ]; then
             echo "[*] system.new.dat.br brotli ile açılıyor..."
             brotli -d system.new.dat.br
+            rm -f system.new.dat.br
           fi
 
           wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py -O sdat2img.py
@@ -157,7 +158,8 @@ jobs:
             python /tmp/img2sdat/img2sdat.py system.sparse.img -v 4 -o ./
             
             echo "[*] brotli ile sıkıştırılıyor..."
-            brotli -q 6 system.new.dat -o system.new.dat.br
+            rm -f system.new.dat.br
+            brotli -q 6 -f system.new.dat -o system.new.dat.br
             
             rm -f system.img system.sparse.img system.new.dat sdat2img.py
             sudo rm -rf system_mnt /tmp/img2sdat
