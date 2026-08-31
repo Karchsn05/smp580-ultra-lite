@@ -18,6 +18,7 @@ echo ">> Hedef Dizin: $TARGET_DIR"
 echo "=================================================================="
 
 # 1. DEBLOAT (Gereksiz, RAM sömüren arka plan servislerini ve uygulamalari temizleme)
+# NOT: TrebuchetQuickStep Android 12'de Gesture/Recents saglayicisidir, sistemin acilmasi icin korunmalidir!
 DEBLOAT_LIST=(
     "app/GoogleFeedback"
     "app/Gmail2"
@@ -33,11 +34,8 @@ DEBLOAT_LIST=(
     "app/GalaxyPencil"
     "app/BasicDreams"
     "app/LiveWallpapersPicker"
-    "app/Trebuchet"
-    "priv-app/TrebuchetQuickStep"
     "priv-app/Velvet"
     "priv-app/GooglePartnerSetup"
-    "priv-app/SetupWizard"
     "priv-app/Feedback"
     "priv-app/Help"
     "priv-app/SharedStorageBackup"
@@ -131,6 +129,10 @@ if [ -f "$BUILD_PROP" ]; then
 # SM-P580 (Exynos 7870 / Mali-T830) ULTRA-LITE & IOS-TUNED TWEAKS
 # ==============================================================================
 
+# --- [0] Acilis ve Kurulum Sihirbazi Hizlandirma (Bootloop Onleme) ---
+ro.setupwizard.mode=DISABLED
+persist.sys.setupwizard=0
+
 # --- [1] Mali-T830 SkiaGL & SurfaceFlinger Donanim Hizlandirma ---
 debug.hwui.renderer=skiagl
 debug.sf.hw=1
@@ -139,7 +141,6 @@ debug.egl.profiler=0
 video.accelerate.hw=1
 persist.sys.ui.hw=1
 renderthread.priority=1
-debug.hwui.render_dirty_regions=false
 
 # --- [2] iOS Benzeri Dokunmatik Tepkiselligi & Akici Kaydirma ---
 sys.use_fifo_ui=1
@@ -166,10 +167,6 @@ enable_freeform_support=1
 force_resizable_activities=1
 persist.sys.freeform_window=1
 
-# --- [5] Animasyon Hızlandırma & CPU Tasarrufu ---
-logcat.live=disable
-profiler.force_disable_ulog=1
-profiler.force_disable_err_rpt=1
 EOF
     echo "  + build.prop basariyla guncellendi."
 fi
