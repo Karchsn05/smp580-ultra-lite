@@ -24,7 +24,7 @@ jobs:
 
       - name: Runner Disk Alanını Genişlet
         run: |
-          echo "Disk alanı temizleniyor..."
+          echo "Gereksiz runner paketleri temizleniyor..."
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/share/swift /opt/hostedtoolcache
           df -h
 
@@ -32,27 +32,22 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y brotli lz4 zip unzip wget curl file python3 python3-pip openjdk-11-jdk jq
-          pip3 install --upgrade pip
+          pip3 install --upgrade pip requests
 
-      - name: Taban ROM'u İndir ve Doğrula
+      - name: Taban ROM'u Akıllı Mirror İle İndir ve Doğrula
         run: |
-          mkdir -p workspace/unpacked
-          cd workspace
-          echo "ROM İndiriliyor: ${{ github.event.inputs.rom_url }}"
+          chmod +x ./scripts/download_rom.py
+          python3 ./scripts/download_rom.py "${{ github.event.inputs.rom_url }}" workspace/rom.zip
           
-          # Curl ile mirror yönlendirmelerini takip ederek indir
-          curl -L --retry 5 --retry-delay 3 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "${{ github.event.inputs.rom_url }}" -o rom.zip
+          echo "Dosya bütünlüğü kontrol ediliyor..."
+          file workspace/rom.zip
+          ls -lh workspace/rom.zip
           
-          echo "İndirilen dosya tipi kontrol ediliyor:"
-          file rom.zip
-          ls -lh rom.zip
-          
-          # Zip bütünlük testi
-          unzip -tq rom.zip || (echo "Hata: İndirilen dosya geçerli bir zip arşivi değil!" && exit 1)
+          unzip -tq workspace/rom.zip
           
           echo "ROM zip paketi açılıyor..."
-          unzip -q rom.zip -d unpacked/
-          ls -la unpacked/
+          unzip -q workspace/rom.zip -d workspace/unpacked/
+          ls -la workspace/unpacked/
 
       - name: Sistem Dosyalarını Çıkar (sdat2img / Mount)
         run: |
